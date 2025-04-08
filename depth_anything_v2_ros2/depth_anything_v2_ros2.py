@@ -176,16 +176,16 @@ class DepthAnythingROS(Node):
         depth = self.model.infer_image(self.current_image)
 
         # Normalize pixel values between 0-255
-        depth = (depth - depth.min()) / (depth.max() - depth.min()) * 255.0
-        depth = depth.astype(np.uint8)
+        # depth = (depth - depth.min()) / (depth.max() - depth.min()) * 255.0
+        # depth = depth.astype(np.uint8)
 
         end_time = time.time()
         execution_time = end_time - start_time
-        self.get_logger().debug(f"Depth estimation took: {execution_time*1000:.1f} ms")
+        self.get_logger().info(f"Depth estimation took: {execution_time*1000:.1f} ms")
 
         # Convert OpenCV Images to ROS Image and publish it
         try:
-            ros_image = self.bridge.cv2_to_imgmsg(depth, "mono8", image_msg.header)
+            ros_image = self.bridge.cv2_to_imgmsg(depth, "32FC1", image_msg.header)
             self.depth_image_pub.publish(ros_image)
         except CvBridgeError as e:
             print(e)
