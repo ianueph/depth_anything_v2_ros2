@@ -1,6 +1,7 @@
 depth_anything:
   ros__parameters:
     # Model configuration
+    log_level: 'debug'
     model_file : ''
     encoder: vits
     device : 'cpu'
