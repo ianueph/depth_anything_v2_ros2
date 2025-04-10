@@ -113,7 +113,7 @@ class DepthAnythingROS(Node):
             durability=QoSDurabilityPolicy.VOLATILE,
             reliability=QoSReliabilityPolicy.BEST_EFFORT,
             history=QoSHistoryPolicy.KEEP_LAST,
-            depth=1)
+            depth=10)
         self.depth_image_pub = self.create_publisher(
             Image, self.depth_image_topic, sensor_qos_profile)
         self.camera_info_pub = self.create_publisher(
@@ -192,11 +192,14 @@ class DepthAnythingROS(Node):
         except CvBridgeError as e:
             self.get_logger().error(f'Could not convert depth image to OpenCV: {e}')
             return
-
-        start_time = time.time()
+        
+        # Downscale image by a factor of 8
+        new_width = self.current_image.shape[1] // 8
+        new_height = self.current_image.shape[0] // 8
+        self.current_image = cv2.resize(self.current_image, (new_width, new_height))   
 
         # Perform inference
-        depth = self.model.infer_image(self.current_image)
+        depth = self.model.infer_image(self.current_image, input_size=224)
         depth = (depth.max()+2) - depth
 
         end_time = time.time()
@@ -211,7 +214,18 @@ class DepthAnythingROS(Node):
             print(e)
             
         try:
-            self.camera_info_pub.publish(self.camera_info_from_source)
+            camera_info = self.camera_info_from_source
+            camera_info.header = image_msg.header
+            camera_info.width = new_width
+            camera_info.height = new_height
+            for i, k in enumerate(camera_info.k):
+                if camera_info.k[i]:
+                    camera_info.k[i] = k // 8
+                    
+            for i, p in enumerate(camera_info.p):
+                if camera_info.p[i]:
+                    camera_info.p[i] = p // 8
+            self.camera_info_pub.publish(camera_info)
         except AttributeError as e:
             print(e)
             
