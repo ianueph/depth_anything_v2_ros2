@@ -7,4 +7,6 @@ depth_anything:
     device : 'cpu'
     # ROS topic configuration
     image_topic: /camera/image_raw
-    depth_image_topic : /depth
+    depth_image_topic : /camera/depth/image_raw
+    camera_info_pub_topic: /camera/depth/camera_info
+    camera_info_sub_topic: /camera/camera_info

@@ -29,6 +29,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, QoSDurabilityPolicy, QoSHistoryPolicy, QoSReliabilityPolicy
 from sensor_msgs.msg import Image
+from sensor_msgs.msg import CameraInfo
 
 # DepthAnything V2
 from depth_anything_v2.depth_anything_v2.dpt import DepthAnythingV2
@@ -45,6 +46,8 @@ class DepthAnythingROS(Node):
             Topic where the image will be subscribed.
         depth_image_topic : str
             Topic where the raw depth image will be published.
+        camera_info_topic : str
+            Topic where the camera info will be published.
         device : str
             Device to use for the inference (cpu or cuda).
         model_file : str
@@ -56,11 +59,15 @@ class DepthAnythingROS(Node):
     ----------
         image_topic : sensor_msgs.msg.Image
             Image topic where the rgb image will be subscribed.
+        camera_info_sub : sensor_msgs.msg.Image
+            Image topic where the camera info will be subscribed.
 
     Publishers
     ----------
         depth : sensor_msgs.msg.Image
             Image topic where the depth image will be published.
+        camera_info_pub : sensor_msgs.msg.Image
+            Image topic where the camera info will be published.
 
     Methods
     -------
@@ -109,10 +116,14 @@ class DepthAnythingROS(Node):
             depth=1)
         self.depth_image_pub = self.create_publisher(
             Image, self.depth_image_topic, sensor_qos_profile)
+        self.camera_info_pub = self.create_publisher(
+            CameraInfo, self.camera_info_pub_topic, sensor_qos_profile)
 
         # Create subscribers
         self.image_sub = self.create_subscription(
             Image, self.image_topic, self.image_callback, sensor_qos_profile)
+        self.camera_info_sub = self.create_subscription(
+            CameraInfo, self.camera_info_sub_topic, self.camera_info_sub_callback, sensor_qos_profile)
 
     def get_params(self) -> None:
         """Get the parameters from the parameter server.
@@ -129,6 +140,18 @@ class DepthAnythingROS(Node):
             'depth_image_topic').get_parameter_value().string_value
         self.get_logger().info(
             f'The parameter depth_image_topic is set to: [{self.depth_image_topic}]')
+        
+        self.declare_parameter('camera_info_sub_topic', 'camera_info')
+        self.camera_info_sub_topic = self.get_parameter(
+            'camera_info_sub_topic').get_parameter_value().string_value
+        self.get_logger().info(
+            f'The parameter camera_info_sub_topic is set to: [{self.camera_info_sub_topic}]')
+        
+        self.declare_parameter('camera_info_pub_topic', 'camera_info')
+        self.camera_info_pub_topic = self.get_parameter(
+            'camera_info_pub_topic').get_parameter_value().string_value
+        self.get_logger().info(
+            f'The parameter camera_info_pub_topic is set to: [{self.camera_info_pub_topic}]')
 
         self.declare_parameter('device', 'cuda:0')
         self.device = self.get_parameter(
@@ -174,10 +197,7 @@ class DepthAnythingROS(Node):
 
         # Perform inference
         depth = self.model.infer_image(self.current_image)
-
-        # Normalize pixel values between 0-255
-        # depth = (depth - depth.min()) / (depth.max() - depth.min()) * 255.0
-        # depth = depth.astype(np.uint8)
+        depth = (depth.max()+2) - depth
 
         end_time = time.time()
         execution_time = end_time - start_time
@@ -189,6 +209,14 @@ class DepthAnythingROS(Node):
             self.depth_image_pub.publish(ros_image)
         except CvBridgeError as e:
             print(e)
+            
+        try:
+            self.camera_info_pub.publish(self.camera_info_from_source)
+        except AttributeError as e:
+            print(e)
+            
+    def camera_info_sub_callback(self, camera_info: CameraInfo) -> None:
+        self.camera_info_from_source = camera_info
 
 
 def main(args=None):
