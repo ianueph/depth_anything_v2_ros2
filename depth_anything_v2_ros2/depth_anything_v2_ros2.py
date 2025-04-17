@@ -54,6 +54,8 @@ class DepthAnythingROS(Node):
             Path to the model.
         encoder : str
             Encoder to use for the model (vits, vitb or vitl).
+        absolute : bool
+            Whether or not the node will attempt to scale the depth map using a known distance
 
     Subscribers
     ----------
@@ -170,6 +172,12 @@ class DepthAnythingROS(Node):
             'encoder').get_parameter_value().string_value
         self.get_logger().info(
             f'The parameter encoder is set to: [{self.encoder}]')
+        
+        self.declare_parameter('absolute', True)
+        self.absolute = self.get_parameter(
+            'absolute').get_parameter_value().bool_value
+        self.get_logger().info(
+            f'The parameter absolute is set to: [{self.absolute}]')
 
     def image_callback(self, image_msg: Image) -> None:
         """Publishes the image with the detections.
@@ -194,13 +202,19 @@ class DepthAnythingROS(Node):
             return
         
         # Downscale image by a factor of 8
-        new_width = self.current_image.shape[1] // 8
-        new_height = self.current_image.shape[0] // 8
+        new_width = 1920//8
+        new_height = 1080//8
         self.current_image = cv2.resize(self.current_image, (new_width, new_height))   
 
         # Perform inference
-        depth = self.model.infer_image(self.current_image, input_size=224)
-        depth = (depth.max()+2) - depth
+        image_size = 224
+        depth = self.model.infer_image(self.current_image, input_size=image_size)
+        depth = depth.max() - depth
+        
+        # Scale entire depth map using the table edge in current setup as of April 14, 2025 2PM
+        if (self.absolute):
+            scale = 2.4/depth[int(new_height//2), int(new_width//2)]
+            depth = depth*scale
 
         end_time = time.time()
         execution_time = end_time - start_time
