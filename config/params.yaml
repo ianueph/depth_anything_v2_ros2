@@ -6,7 +6,8 @@ depth_anything:
     encoder: vits
     device : 'cpu'
     # ROS topic configuration
-    image_topic: /camera/image_raw
-    depth_image_topic : /camera/depth/image_raw
-    camera_info_pub_topic: /camera/depth/camera_info
-    camera_info_sub_topic: /camera/camera_info
+    image_topic: /depth_camera/image_raw_throttle
+    depth_image_topic : /depth_camera/depth/image_raw
+    camera_info_pub_topic: /depth_camera/depth/camera_info
+    camera_info_sub_topic: /depth_camera/camera_info
+    max_depth: 0.5

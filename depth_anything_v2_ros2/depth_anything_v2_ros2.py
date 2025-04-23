@@ -32,7 +32,7 @@ from sensor_msgs.msg import Image
 from sensor_msgs.msg import CameraInfo
 
 # DepthAnything V2
-from depth_anything_v2.depth_anything_v2.dpt import DepthAnythingV2
+from depth_anything_v2.metric_depth.depth_anything_v2.dpt import DepthAnythingV2
 
 
 class DepthAnythingROS(Node):
@@ -54,8 +54,8 @@ class DepthAnythingROS(Node):
             Path to the model.
         encoder : str
             Encoder to use for the model (vits, vitb or vitl).
-        absolute : bool
-            Whether or not the node will attempt to scale the depth map using a known distance
+        max_depth : double
+            Maximum distance in meters that is in view of the camera. (100 if outdoors)
 
     Subscribers
     ----------
@@ -97,13 +97,13 @@ class DepthAnythingROS(Node):
         # Model initialization
         if self.encoder == 'vits':
             self.model = DepthAnythingV2(encoder=self.encoder, features=64,
-                                         out_channels=[48, 96, 192, 384])
+                                         out_channels=[48, 96, 192, 384], max_depth=self.max_depth)
         elif self.encoder == 'vitb':
             self.model = DepthAnythingV2(encoder=self.encoder, features=128,
-                                         out_channels=[96, 192, 384, 768])
+                                         out_channels=[96, 192, 384, 768], max_depth=self.max_depth)
         elif self.encoder == 'vitl':
             self.model = DepthAnythingV2(encoder=self.encoder, features=256,
-                                         out_channels=[256, 512, 1024, 1024])
+                                         out_channels=[256, 512, 1024, 1024], max_depth=self.max_depth)
         else:
             self.get_logger().error(
                 f'nWrong type of encoder: [{self.encoder}]. Must be vits, vitb or vitl')
@@ -173,11 +173,11 @@ class DepthAnythingROS(Node):
         self.get_logger().info(
             f'The parameter encoder is set to: [{self.encoder}]')
         
-        self.declare_parameter('absolute', True)
-        self.absolute = self.get_parameter(
-            'absolute').get_parameter_value().bool_value
+        self.declare_parameter('max_depth', 20.0)
+        self.max_depth = self.get_parameter(
+            'max_depth').get_parameter_value().double_value
         self.get_logger().info(
-            f'The parameter absolute is set to: [{self.absolute}]')
+            f'The parameter max_depth is set to: [{self.max_depth}]')
 
     def image_callback(self, image_msg: Image) -> None:
         """Publishes the image with the detections.
@@ -209,12 +209,14 @@ class DepthAnythingROS(Node):
         # Perform inference
         image_size = 224
         depth = self.model.infer_image(self.current_image, input_size=image_size)
-        depth = depth.max() - depth
-        
-        # Scale entire depth map using the table edge in current setup as of April 14, 2025 2PM
-        if (self.absolute):
-            scale = 2.4/depth[int(new_height//2), int(new_width//2)]
-            depth = depth*scale
+        self.get_logger().info(
+            f'Maximum distance: {depth.max()}, Minimum distance: {depth.min()}')
+        depth = depth.max() - depth + depth.min()
+        ## 
+        ## # Scale entire depth map using the table edge in current setup as of April 14, 2025 2PM
+        ## if (self.max_depth):
+        ##     scale = 2.4/depth[int(new_height//2), int(new_width//2)]
+        ##     depth = depth*scale
 
         end_time = time.time()
         execution_time = end_time - start_time
