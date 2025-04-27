@@ -201,13 +201,13 @@ class DepthAnythingROS(Node):
             self.get_logger().error(f'Could not convert depth image to OpenCV: {e}')
             return
         
-        # Downscale image by a factor of 8
-        new_width = 1920//8
-        new_height = 1080//8
-        self.current_image = cv2.resize(self.current_image, (new_width, new_height))   
-
+        ## new_width = 640//2
+        ## new_height = 360//2
+        ## self.current_image = cv2.resize(self.current_image, (new_width, new_height))  
+        
         # Perform inference
-        image_size = 224
+        image_size = 360
+        
         depth = self.model.infer_image(self.current_image, input_size=image_size)
         self.get_logger().info(
             f'Maximum distance: {depth.max()}, Minimum distance: {depth.min()}')
@@ -232,15 +232,15 @@ class DepthAnythingROS(Node):
         try:
             camera_info = self.camera_info_from_source
             camera_info.header = image_msg.header
-            camera_info.width = new_width
-            camera_info.height = new_height
+            camera_info.width = 640
+            camera_info.height = 360
             for i, k in enumerate(camera_info.k):
                 if camera_info.k[i]:
-                    camera_info.k[i] = k // 8
+                    camera_info.k[i] = k
                     
             for i, p in enumerate(camera_info.p):
                 if camera_info.p[i]:
-                    camera_info.p[i] = p // 8
+                    camera_info.p[i] = p
             self.camera_info_pub.publish(camera_info)
         except AttributeError as e:
             print(e)
